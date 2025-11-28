@@ -28,12 +28,7 @@ manifest = {
     "display": "standalone",
     "background_color": "#000",
     "theme_color": "#00ff88",
-    "icons": [
-        {
-            "src": f"data:image/svg+xml,{svg_icon}",
-            "sizes": "192x192",
-        }
-    ],
+    "icons": [{"src": f"data:image/svg+xml,{svg_icon}", "sizes": "192x192"}],
 }
 manifest_json = json.dumps(manifest).encode()
 manifest_b64 = base64.b64encode(manifest_json).decode()
@@ -59,7 +54,7 @@ st.markdown(
                 background:rgba(0,0,0,0.8); font-weight:bold;}}
     </style>
     """,
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
 
 # Persistence
@@ -67,67 +62,56 @@ DATA_FILE = Path("aim_final.json")
 
 
 def save():
-    DATA_FILE.write_text(
-        json.dumps(
-            {
-                k: st.session_state[k]
-                for k in [
-                    "playlist",
-                    "eq31",
-                    "current_preset",
-                    "custom_presets",
-                    "volume",
-                    "speed",
-                    "current_idx",
-                ]
-            }
+    try:
+        DATA_FILE.write_text(
+            json.dumps(
+                {
+                    k: st.session_state[k]
+                    for k in [
+                        "playlist",
+                        "eq31",
+                        "current_preset",
+                        "custom_presets",
+                        "volume",
+                        "speed",
+                        "current_idx",
+                    ]
+                }
+            )
         )
-    )
+    except Exception as e:
+        st.error(f"Failed to save data: {e}")
 
 
 def load():
     if DATA_FILE.exists():
         try:
             data = json.loads(DATA_FILE.read_text())
-            for k, v in data.items():
-                st.session_state[k] = v
-        except Exception:
+            if isinstance(data, dict):
+                for k, v in data.items():
+                    st.session_state[k] = v
+        except (json.JSONDecodeError, IOError, Exception):
             pass
 
 
 load()
 
-
-@st.cache_data
-def get_bands():
-    return [
-        20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400,
-        500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000,
-        6300, 8000, 10000, 12500, 16000, 20000
-    ]
-
-
-@st.cache_data
-def get_presets():
-    bands = get_bands()
-    return {
-        "Flat": {f: 0 for f in bands},
-        "Bass Monster": {20: 16, 25: 15, 31.5: 14, 40: 12, 50: 10, 63: 8},
-        "Crystal Clear": {
-            4000: 9, 5000: 8, 8000: 10, 10000: 8, 16000: 8
-        },
-        "Dubstep": {20: 18, 31.5: 16, 63: 14},
-        "Rock": {63: 10, 125: 8, 8000: 10, 16000: 10},
-        "Jazz": {160: 6, 400: 8, 1000: 5, 4000: 6},
-        "Lofi Hip-Hop": {20: 8, 63: 6, 8000: -10, 16000: -15},
-        "Classical": {20: 5, 4000: 10, 8000: 12, 16000: 10},
-    }
-
-
 # Defaults
-bands = get_bands()
-presets = get_presets()
-
+bands = [
+    20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500,
+    630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000,
+    10000, 12500, 16000, 20000
+]
+presets = {
+    "Flat": {f: 0 for f in bands},
+    "Bass Monster": {20: 16, 25: 15, 31.5: 14, 40: 12, 50: 10, 63: 8},
+    "Crystal Clear": {4000: 9, 5000: 8, 8000: 10, 10000: 8, 16000: 8},
+    "Dubstep": {20: 18, 31.5: 16, 63: 14},
+    "Rock": {63: 10, 125: 8, 8000: 10, 16000: 10},
+    "Jazz": {160: 6, 400: 8, 1000: 5, 4000: 6},
+    "Lofi Hip-Hop": {20: 8, 63: 6, 8000: -10, 16000: -15},
+    "Classical": {20: 5, 4000: 10, 8000: 12, 16000: 10},
+}
 init_keys = [
     "eq31",
     "custom_presets",
@@ -161,40 +145,52 @@ for f in bands:
 with st.sidebar:
     st.markdown(
         f"<h1 style='color:{theme['p']}'>AIM PLAYER</h1>",
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
     media = st.file_uploader(
         "Upload Media", type=["mp4", "webm", "mp3", "wav", "ogg"]
     )
     subs = st.file_uploader("Subtitle", type=["srt", "vtt", "ass"])
     if media:
-        m64 = base64.b64encode(media.getvalue()).decode()
-        url = f"data:{media.type};base64,{m64}"
-        sub_url = (
-            f"data:text/vtt;base64,"
-            f"{base64.b64encode(subs.getvalue()).decode()}"
-            if subs
-            else None
-        )
-        st.session_state.playlist.append(
-            {
-                "name": media.name,
-                "url": url,
-                "type": media.type,
-                "sub": sub_url,
-            }
-        )
-        save()
-        st.rerun()
+        try:
+            m64 = base64.b64encode(media.getvalue()).decode()
+            url = f"data:{media.type};base64,{m64}"
+            sub_url = None
+            if subs:
+                try:
+                    sub_url = (
+                        f"data:text/vtt;base64,"
+                        f"{base64.b64encode(subs.getvalue()).decode()}"
+                    )
+                except Exception as e:
+                    st.warning(f"Subtitle load failed: {e}")
+            
+            st.session_state.playlist.append(
+                {
+                    "name": media.name,
+                    "url": url,
+                    "type": media.type,
+                    "sub": sub_url,
+                }
+            )
+            save()
+            st.rerun()
+        except Exception as e:
+            st.error(f"Failed to load media file: {e}")
 
 # Main
 st.markdown(
     "<h1>AIM PLAYER — FINAL WITH VLC HOTKEYS</h1>",
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
 
 if st.session_state.playlist:
     idx = st.session_state.current_idx
+    # Validate index bounds
+    if idx >= len(st.session_state.playlist):
+        idx = 0
+        st.session_state.current_idx = 0
+    
     track = st.session_state.playlist[idx]
 
     # Preset + Save
@@ -205,19 +201,27 @@ if st.session_state.playlist:
             ["Manual"] + list(presets) + list(st.session_state.custom_presets),
         )
         if p != "Manual" and p != st.session_state.current_preset:
-            preset_dict = (
-                presets if p in presets else st.session_state.custom_presets
-            )
-            st.session_state.eq31 = preset_dict[p].copy()
+            if p in presets:
+                st.session_state.eq31 = presets[p].copy()
+            elif p in st.session_state.custom_presets:
+                st.session_state.eq31 = (
+                    st.session_state.custom_presets[p].copy()
+                )
             st.session_state.current_preset = p
             save()
             st.rerun()
     with col2:
         n = st.text_input("Save custom")
         if st.button("Save") and n:
-            st.session_state.custom_presets[n] = st.session_state.eq31.copy()
-            st.session_state.current_preset = n
-            save()
+            if n.strip():  # Validate input not empty
+                st.session_state.custom_presets[n] = (
+                    st.session_state.eq31.copy()
+                )
+                st.session_state.current_preset = n
+                save()
+                st.success(f"Saved preset: {n}")
+            else:
+                st.error("Preset name cannot be empty")
 
     # 31-Band EQ
     with st.expander(
@@ -287,9 +291,7 @@ if st.session_state.playlist:
         c1, c2 = st.columns([6, 1])
         with c1:
             playlist_item = st.session_state.playlist[i]
-            if st.button(
-                f"{i+1}. {playlist_item['name']}", key=f"p{i}"
-            ):
+            if st.button(f"{i+1}. {playlist_item['name']}", key=f"p{i}"):
                 st.session_state.current_idx = i
                 st.rerun()
         with c2:
