@@ -127,8 +127,10 @@ for k in init_keys:
     if k not in st.session_state:
         if k == "eq31":
             st.session_state[k] = {f: 0 for f in bands}
-        elif k in ["custom_presets", "playlist"]:
+        elif k == "custom_presets":
             st.session_state[k] = {}
+        elif k == "playlist":
+            st.session_state[k] = []
         elif k == "current_preset":
             st.session_state[k] = "Flat"
         elif k in ["volume", "speed"]:
