@@ -97,22 +97,36 @@ def load():
 
 load()
 
+
+@st.cache_data
+def get_bands():
+    return [
+        20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400,
+        500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000,
+        6300, 8000, 10000, 12500, 16000, 20000
+    ]
+
+
+@st.cache_data
+def get_presets():
+    bands = get_bands()
+    return {
+        "Flat": {f: 0 for f in bands},
+        "Bass Monster": {20: 16, 25: 15, 31.5: 14, 40: 12, 50: 10, 63: 8},
+        "Crystal Clear": {
+            4000: 9, 5000: 8, 8000: 10, 10000: 8, 16000: 8
+        },
+        "Dubstep": {20: 18, 31.5: 16, 63: 14},
+        "Rock": {63: 10, 125: 8, 8000: 10, 16000: 10},
+        "Jazz": {160: 6, 400: 8, 1000: 5, 4000: 6},
+        "Lofi Hip-Hop": {20: 8, 63: 6, 8000: -10, 16000: -15},
+        "Classical": {20: 5, 4000: 10, 8000: 12, 16000: 10},
+    }
+
+
 # Defaults
-bands = [
-    20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500,
-    630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000,
-    10000, 12500, 16000, 20000
-]
-presets = {
-    "Flat": {f: 0 for f in bands},
-    "Bass Monster": {20: 16, 25: 15, 31.5: 14, 40: 12, 50: 10, 63: 8},
-    "Crystal Clear": {4000: 9, 5000: 8, 8000: 10, 10000: 8, 16000: 8},
-    "Dubstep": {20: 18, 31.5: 16, 63: 14},
-    "Rock": {63: 10, 125: 8, 8000: 10, 16000: 10},
-    "Jazz": {160: 6, 400: 8, 1000: 5, 4000: 6},
-    "Lofi Hip-Hop": {20: 8, 63: 6, 8000: -10, 16000: -15},
-    "Classical": {20: 5, 4000: 10, 8000: 12, 16000: 10},
-}
+bands = get_bands()
+presets = get_presets()
 
 init_keys = [
     "eq31",
@@ -220,121 +234,46 @@ if st.session_state.playlist:
                     st.session_state.eq31[f] = v
 
     # Player
-    sub_track = (
-        f'<track kind="subtitles" src="{track["sub"]}" default>'
-        if track.get("sub")
-        else ""
-    )
     st.video(track["url"])
 
-    # === VLC HOTKEYS + FULL AUDIO ENGINE ===
-    html_code = f"""
+    # === VLC HOTKEYS (LIGHTWEIGHT VERSION) ===
+    html_code = """
     <div style="position:fixed;bottom:20px;left:20px;color:#00ff88;
-         font-size:18px;font-weight:bold;z-index:999;">
-        VLC Hotkeys Active — Space=Play/Pause • →/+10s • ←/-10s •
-        Ctrl+→/+60s • Ctrl+←/-60s • F=Fullscreen • M=Mute • +/- Volume
+         font-size:14px;font-weight:bold;z-index:999;">
+        VLC Hotkeys: Space=Play/Pause | →/← | F=Fullscreen | M=Mute
     </div>
     <script>
     const video = document.querySelector('video');
-    if (video) {{
-        document.addEventListener('keydown', e => {{
+    if (video) {
+        document.addEventListener('keydown', e => {
             if (e.target.tagName === 'INPUT') return;
-            if (e.key === ' ') {{
+            if (e.key === ' ') {
                 e.preventDefault();
                 video.paused ? video.play() : video.pause();
-            }}
-            else if (e.key === 'ArrowRight') {{
+            }
+            else if (e.key === 'ArrowRight') {
                 video.currentTime += e.ctrlKey ? 60 : 10;
-            }}
-            else if (e.key === 'ArrowLeft') {{
+            }
+            else if (e.key === 'ArrowLeft') {
                 video.currentTime -= e.ctrlKey ? 60 : 10;
-            }}
-            else if (e.key === 'f' || e.key === 'F') {{
+            }
+            else if (e.key === 'f' || e.key === 'F') {
                 video.requestFullscreen?.();
-            }}
-            else if (e.key === 'm' || e.key === 'M') {{
+            }
+            else if (e.key === 'm' || e.key === 'M') {
                 video.muted = !video.muted;
-            }}
-            else if (e.key === '+' || e.key === '=') {{
-                video.volume = Math.min(2, video.volume + 0.1);
-                parent.postMessage({{volume:video.volume}},'*');
-            }}
-            else if (e.key === '-') {{
+            }
+            else if (e.key === '+' || e.key === '=') {
+                video.volume = Math.min(1, video.volume + 0.1);
+            }
+            else if (e.key === '-') {
                 video.volume = Math.max(0, video.volume - 0.1);
-                parent.postMessage({{volume:video.volume}},'*');
-            }}
-        }});
-
-        // Sync volume from slider
-        window.addEventListener('message', msg => {{
-            if (msg.data.volume !== undefined)
-                video.volume = msg.data.volume;
-        }});
-    }}
-
-    // FULL AUDIO ENGINE (31-band + visualizer)
-    let ctx, src, analyser, gain, filters=[];
-    function init() {{
-        if (!video) return;
-        ctx = new AudioContext();
-        src = ctx.createMediaElementSource(video);
-        analyser = ctx.createAnalyser();
-        analyser.fftSize = 2048;
-        gain = ctx.createGain();
-        const freqs = {json.dumps(bands)};
-        const gains = {json.dumps(list(st.session_state.eq31.values()))};
-        filters = freqs.map((f,i)=>({{
-            let b = ctx.createBiquadFilter();
-            b.type = f<=31.5?'lowshelf':f>=16000?'highshelf':'peaking';
-            b.frequency.value = f;
-            b.gain.value = gains[i];
-            return b;
-        }}));
-        src.connect(filters[0]);
-        for(let i=0;i<filters.length-1;i++)
-            filters[i].connect(filters[i+1]);
-        filters[filters.length-1].connect(analyser);
-        filters[filters.length-1].connect(gain);
-        gain.connect(ctx.destination);
-        gain.gain.value = {st.session_state.volume};
-        video.volume = {st.session_state.volume};
-    }}
-    setInterval(()=>{{
-        if (filters.length) {{
-            const g = {json.dumps(list(st.session_state.eq31.values()))};
-            filters.forEach((f,i)=>f.gain.setValueAtTime(g[i],
-                ctx?.currentTime || 0));
-        }}
-    }}, 80);
-
-    // Visualizer
-    const canvas = document.createElement('canvas');
-    canvas.width = 1200;
-    canvas.height = 440;
-    canvas.style.cssText = 'width:100%;background:#000;border-radius:' +
-                           '16px;margin-top:20px;';
-    document.body.appendChild(canvas);
-    const c = canvas.getContext('2d');
-    const buf = new Uint8Array(1024);
-    function draw() {{
-        requestAnimationFrame(draw);
-        if (!analyser) return;
-        analyser.getByteFrequencyData(buf);
-        c.fillStyle = 'rgba(0,0,0,0.2)';
-        c.fillRect(0,0,canvas.width,canvas.height);
-        const w = canvas.width/128;
-        for(let i=0;i<128;i++){{
-            const h = canvas.height * (buf[i*8]/255) * 1.6;
-            const hue = (i*3 + performance.now()*0.05) % 360;
-            c.fillStyle = `hsl(${{hue}},100%,60%)`;
-            c.fillRect(i*w, canvas.height-h, w-3, h);
-        }}
-    }}
-    draw();
-    video?.addEventListener('play', init);
+            }
+        });
+    }
     </script>
     """
-    st.components.v1.html(html_code, height=500)
+    st.components.v1.html(html_code, height=80)
 
     # Playlist with delete
     st.subheader("Playlist")
