@@ -244,7 +244,10 @@ if st.session_state.playlist:
                     st.session_state.eq31[f] = v
 
     # Player
-    st.video(track["url"])
+    try:
+        st.video(track["url"])
+    except Exception as e:
+        st.error(f"Failed to load video: {e}")
 
     # === VLC HOTKEYS (LIGHTWEIGHT VERSION) ===
     html_code = """
