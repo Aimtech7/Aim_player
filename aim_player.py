@@ -152,6 +152,11 @@ for k in init_keys:
         else:
             st.session_state[k] = 0
 
+# Ensure all bands exist in eq31 (for missing frequencies)
+for f in bands:
+    if f not in st.session_state.get("eq31", {}):
+        st.session_state.setdefault("eq31", {})[f] = 0
+
 # Sidebar
 with st.sidebar:
     st.markdown(
@@ -223,11 +228,12 @@ if st.session_state.playlist:
             for j, col in enumerate(cols):
                 if i + j < len(bands):
                     f = bands[i + j]
+                    current_val = st.session_state.eq31.get(f, 0)
                     v = col.slider(
                         f"{f}Hz",
                         -15,
                         15,
-                        float(st.session_state.eq31[f]),
+                        float(current_val),
                         0.5,
                         key=f"eq{i+j}",
                     )
